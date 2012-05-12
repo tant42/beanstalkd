@@ -5,6 +5,10 @@ typedef int32_t       int32;
 typedef uint32_t      uint32;
 typedef int64_t       int64;
 typedef uint64_t      uint64;
+typedef int           bool;
+
+#define true  ((bool)1)
+#define false ((bool)0)
 
 #define int8_t   do_not_use_int8_t
 #define uint8_t  do_not_use_uint8_t
@@ -179,6 +183,7 @@ char* fmtalloc(char *fmt, ...);
 void* zalloc(int n);
 #define new(T) zalloc(sizeof(T))
 void optparse(Server*, char**);
+void splitn(char **parts, char *s, char sep, int n);
 
 extern const char *progname;
 

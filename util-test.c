@@ -260,3 +260,64 @@ cttestoptVnVu()
     assert(srv.wal.nocomp == 1);
     assert(strcmp(srv.user, "kr") == 0);
 }
+
+
+void
+cttestsplitn3()
+{
+    char *parts[5] = {};
+    char s[] = "foo bar baz";
+
+    splitn(parts, s, ' ', 5);
+    assert(parts[0] == s);
+    assert(parts[1] == &s[4]);
+    assert(parts[2] == &s[8]);
+    assert(parts[3] == NULL);
+    assert(parts[4] == NULL);
+    assert(strcmp(parts[0], "foo") == 0);
+    assert(strcmp(parts[1], "bar") == 0);
+    assert(strcmp(parts[2], "baz") == 0);
+}
+
+
+void
+cttestsplitn6()
+{
+    char *parts[5] = {};
+    char s[] = "foo bar baz quux quuux quuuux";
+
+    splitn(parts, s, ' ', 5);
+    assert(parts[0] == s);
+    assert(parts[1] == &s[4]);
+    assert(parts[2] == &s[8]);
+    assert(parts[3] == &s[12]);
+    assert(parts[4] == &s[17]);
+    assert(strcmp(parts[0], "foo") == 0);
+    assert(strcmp(parts[1], "bar") == 0);
+    assert(strcmp(parts[2], "baz") == 0);
+    assert(strcmp(parts[3], "quux") == 0);
+    assert(strcmp(parts[4], "quuux quuuux") == 0);
+}
+
+
+void
+cttestsplitn0()
+{
+    splitn(NULL, "foo", ' ', 0);
+}
+
+
+void
+cttestsplitn1()
+{
+    char *parts[5] = {};
+    char s[] = "foo";
+
+    splitn(parts, s, ' ', 5);
+    assert(parts[0] == s);
+    assert(parts[1] == NULL);
+    assert(parts[2] == NULL);
+    assert(parts[3] == NULL);
+    assert(parts[4] == NULL);
+    assert(strcmp(parts[0], "foo") == 0);
+}

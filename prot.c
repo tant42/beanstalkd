@@ -914,6 +914,44 @@ fmt_stats(char *buf, size_t size, void *x)
 
 }
 
+
+bool
+scanuint(uint *n, char *s)
+{
+    char *e = NULL;
+
+    errno = 0;
+    *n = strtoul(s, &e, 10);
+    return errno == 0 && !*e && isdigit(*s);
+}
+
+
+bool
+scanint64(int64 *n, char *s)
+{
+    bool r;
+    uint o;
+
+    r = scanuint(&o, s);
+    *n = (int64)o;
+    return r;
+}
+
+
+// Read a time duration, in seconds, from s, and set t to to the same
+// duration in ns.
+bool
+scantime(int64 *t, char *s)
+{
+    bool r;
+    uint sec;
+
+    r = scanuint(&sec, s);
+    *t = ((int64)sec) * 1000000000;
+    return r;
+}
+
+
 /* Read a priority value from the given buffer and place it in pri.
  * Update end to point to the address after the last character consumed.
  * Pri and end can be NULL. If they are both NULL, read_pri() will do the
@@ -954,14 +992,6 @@ read_delay(int64 *delay, const char *buf, char **end)
     if (r) return r;
     *delay = ((int64) delay_sec) * 1000000000;
     return 0;
-}
-
-/* Read a timeout value from the given buffer and place it in ttr.
- * The interface and behavior are the same as in read_delay(). */
-static int
-read_ttr(int64 *ttr, const char *buf, char **end)
-{
-    return read_delay(ttr, buf, end);
 }
 
 /* Read a tube name from the given buffer moving the buffer to the name start */
@@ -1158,6 +1188,54 @@ prot_remove_tube(tube t)
     ms_remove(&tubes, t);
 }
 
+
+bool
+opput(Conn *c, char **args)
+{
+    uint pri, size;
+    int64 delay, ttr;
+    bool ok = true;
+
+    ok *= scanuint(&pri, args[1]);
+    ok *= scantime(&delay, args[2]);
+    ok *= scantime(&ttr, args[3]);
+    ok *= scanuint(&size, args[4]);
+    if (!ok) {
+        reply_msg(c, MSG_BAD_FORMAT);
+        return false;
+    }
+
+    if (size > job_data_size_limit) {
+        /* throw away the job body and respond with JOB_TOO_BIG */
+        skip(c, size + 2, MSG_JOB_TOO_BIG);
+        return false;
+    }
+
+    connsetproducer(c);
+
+    if (ttr < 1000000000) {
+        ttr = 1000000000;
+    }
+
+    c->in_job = make_job(pri, delay, ttr, size + 2, c->use);
+
+    /* OOM? */
+    if (!c->in_job) {
+        /* throw away the job body and respond with OUT_OF_MEMORY */
+        twarnx("server error: " MSG_OUT_OF_MEMORY);
+        skip(c, size + 2, MSG_OUT_OF_MEMORY);
+        return false;
+    }
+
+    fill_extra_data(c);
+
+    /* it's possible we already have a complete job */
+    maybe_enqueue_incoming_job(c);
+
+    return true;
+}
+
+
 static void
 dispatch_cmd(Conn *c)
 {
@@ -1166,11 +1244,13 @@ dispatch_cmd(Conn *c)
     uint count;
     job j = 0;
     byte type;
-    char *size_buf, *delay_buf, *ttr_buf, *pri_buf, *end_buf, *name;
-    uint pri, body_size;
-    int64 delay, ttr;
+    char *delay_buf, *pri_buf, *end_buf, *name;
+    uint pri;
+    int64 delay;
     uint64 id;
     tube t = NULL;
+    char cmd[LINE_BUF_SIZE+1] = "";
+    char *args[5] = {};
 
     /* NUL-terminate this string so we can use strtol and friends */
     c->cmd[c->cmd_len - 2] = '\0';
@@ -1180,6 +1260,9 @@ dispatch_cmd(Conn *c)
         return reply_msg(c, MSG_BAD_FORMAT);
     }
 
+    strncpy(cmd, c->cmd, sizeof cmd);
+    splitn(args, cmd, ' ', 5);
+
     type = which_cmd(c);
     if (verbose >= 2) {
         printf("<%d command %s\n", c->sock.fd, op_names[type]);
@@ -1187,50 +1270,10 @@ dispatch_cmd(Conn *c)
 
     switch (type) {
     case OP_PUT:
-        r = read_pri(&pri, c->cmd + 4, &delay_buf);
-        if (r) return reply_msg(c, MSG_BAD_FORMAT);
-
-        r = read_delay(&delay, delay_buf, &ttr_buf);
-        if (r) return reply_msg(c, MSG_BAD_FORMAT);
-
-        r = read_ttr(&ttr, ttr_buf, &size_buf);
-        if (r) return reply_msg(c, MSG_BAD_FORMAT);
-
-        errno = 0;
-        body_size = strtoul(size_buf, &end_buf, 10);
-        if (errno) return reply_msg(c, MSG_BAD_FORMAT);
-
-        op_ct[type]++;
-
-        if (body_size > job_data_size_limit) {
-            /* throw away the job body and respond with JOB_TOO_BIG */
-            return skip(c, body_size + 2, MSG_JOB_TOO_BIG);
+        if (opput(c, args)) {
+            op_ct[type]++;
         }
-
-        /* don't allow trailing garbage */
-        if (end_buf[0] != '\0') return reply_msg(c, MSG_BAD_FORMAT);
-
-        connsetproducer(c);
-
-        if (ttr < 1000000000) {
-            ttr = 1000000000;
-        }
-
-        c->in_job = make_job(pri, delay, ttr, body_size + 2, c->use);
-
-        /* OOM? */
-        if (!c->in_job) {
-            /* throw away the job body and respond with OUT_OF_MEMORY */
-            twarnx("server error: " MSG_OUT_OF_MEMORY);
-            return skip(c, body_size + 2, MSG_OUT_OF_MEMORY);
-        }
-
-        fill_extra_data(c);
-
-        /* it's possible we already have a complete job */
-        maybe_enqueue_incoming_job(c);
-
-        break;
+        return;
     case OP_PEEK_READY:
         /* don't allow trailing garbage */
         if (c->cmd_len != CMD_PEEK_READY_LEN + 2) {

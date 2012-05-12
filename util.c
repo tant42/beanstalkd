@@ -208,3 +208,23 @@ optparse(Server *s, char **argv)
         usage(5);
     }
 }
+
+
+// Splits s into at most n pieces by overwriting
+// subsequent sep chars with NUL, and assigns each
+// piece to parts.
+void
+splitn(char **parts, char *s, char sep, int n)
+{
+    if (n > 0) {
+        *parts++ = s;
+        while (--n) {
+            s = strchr(s, sep);
+            if (!s) {
+                return;
+            }
+            *s++ = 0;
+            *parts++ = s;
+        }
+    }
+}
