@@ -233,6 +233,9 @@ connclose(Conn *c)
     TUBE_ASSIGN(c->use, NULL);
 
     if (c->tickpos > -1) {
+        if (verbose >= 3) {
+            printf("remove conn %p from pos %d\n", c, c->tickpos);
+        }
         heapremove(&c->srv->conns, c->tickpos);
     }
 

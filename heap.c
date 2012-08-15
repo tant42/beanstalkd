@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <stdio.h>
 #include "dat.h"
 
 
@@ -8,6 +10,9 @@ static void
 set(Heap *h, int k, void *x)
 {
     h->data[k] = x;
+    if (verbose >= 3) {
+        printf("heap %p set %p at pos %d\n", h, x, k);
+    }
     h->rec(x, k);
 }
 
@@ -27,6 +32,24 @@ static int
 less(Heap *h, int a, int b)
 {
     return h->less(h->data[a], h->data[b]);
+}
+
+
+static void
+checkheapproperty(Heap *h)
+{
+    int i, l, r;
+
+    for (i = 0; i < h->len; i++) {
+        l = i*2 + 1; // left child
+        r = i*2 + 2; // right child
+        if (l < h->len) {
+            assert(less(h, i, l));
+        }
+        if (r < h->len) {
+            assert(less(h, i, r));
+        }
+    }
 }
 
 
@@ -114,6 +137,7 @@ heapremove(Heap *h, int k)
     set(h, k, h->data[h->len]);
     siftdown(h, k);
     siftup(h, k);
+    checkheapproperty(h);
     h->rec(x, -1);
     return x;
 }

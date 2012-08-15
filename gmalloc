@@ -1,0 +1,11 @@
+#!/bin/bash
+exec gdb \
+	-x <(
+		echo set env DYLD_INSERT_LIBRARIES /usr/lib/libgmalloc.dylib
+		echo set env MALLOC_FILL_SPACE YES
+		echo set env MALLOC_STRICT_SIZE YES
+		echo set env MallocStackLogging YES
+		echo set env MallocPreScribble YES
+		echo set env MallocScribble YES
+	) \
+	--args "$@"

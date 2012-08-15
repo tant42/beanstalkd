@@ -1825,6 +1825,13 @@ prottick(Server *s)
             break;
         }
 
+        if (c->tickpos != 0) {
+            printf("conn heap root %p c->tickpos=%d is not 0\n", c, c->tickpos);
+            abort();
+        }
+        if (verbose >= 3) {
+            printf("remove conn %p from pos %d\n", c, c->tickpos);
+        }
         heapremove(&s->conns, 0);
         conn_timeout(c);
     }

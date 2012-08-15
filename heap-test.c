@@ -7,6 +7,33 @@
 #include "dat.h"
 
 
+static int
+less(Heap *h, int a, int b)
+{
+    return h->less(h->data[a], h->data[b]);
+}
+
+
+// Assume h contains only job pointers.
+static void
+checkheapproperty(Heap *h)
+{
+    int i, l, r;
+
+    for (i = 0; i < h->len; i++) {
+        assert(((job)h->data[i])->heap_index == i);
+        l = i*2 + 1; // left child
+        r = i*2 + 2; // right child
+        if (l < h->len) {
+            assert(less(h, i, l));
+        }
+        if (r < h->len) {
+            assert(less(h, i, r));
+        }
+    }
+}
+
+
 void
 cttestheap_insert_one()
 {
@@ -41,6 +68,7 @@ cttestheap_insert_and_remove_one()
     assertf(r, "insert should succeed");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j1, "j1 should come back out");
     assertf(h.len == 0, "h should be empty.");
     printf("j->heap_index is %zu\n", j->heap_index);
@@ -80,15 +108,18 @@ cttestheap_priority()
     assertf(j3->heap_index == 1, "should match");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j1, "j1 should come out first.");
     assertf(j2->heap_index == 0, "should match");
     assertf(j3->heap_index == 1, "should match");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j2, "j2 should come out second.");
     assertf(j3->heap_index == 0, "should match");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j3, "j3 should come out third.");
 }
 
@@ -128,15 +159,18 @@ cttestheap_fifo_property()
     assertf(j3c->heap_index == 2, "should match");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j3a, "j3a should come out first.");
     assertf(j3b->heap_index == 0, "should match");
     assertf(j3c->heap_index == 1, "should match");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j3b, "j3b should come out second.");
     assertf(j3c->heap_index == 0, "should match");
 
     j = heapremove(&h, 0);
+    checkheapproperty(&h);
     assertf(j == j3c, "j3c should come out third.");
 }
 
@@ -162,6 +196,7 @@ cttestheap_many_jobs()
     last_pri = 0;
     for (i = 0; i < n; i++) {
         j = heapremove(&h, 0);
+        checkheapproperty(&h);
         assertf(j->r.pri >= last_pri, "should come out in order");
         last_pri = j->r.pri;
     }
@@ -172,7 +207,6 @@ void
 cttestheap_remove_k()
 {
     Heap h = {0};
-    uint last_pri;
     int r, i, c, n = 20;
     job j;
 
@@ -189,13 +223,74 @@ cttestheap_remove_k()
 
         /* remove one from the middle */
         heapremove(&h, 25);
-
-        /* now make sure the rest are still a valid heap */
-        last_pri = 0;
-        for (i = 1; i < n; i++) {
-            j = heapremove(&h, 0);
-            assertf(j->r.pri >= last_pri, "should come out in order");
-            last_pri = j->r.pri;
-        }
+        checkheapproperty(&h);
     }
+}
+
+
+static job
+mustmakejob(uint pri)
+{
+    job j;
+
+    j = make_job(pri, 0, 1, 0, 0);
+    assertf(j, "allocation");
+    return j;
+}
+
+
+void
+cttestheapcrashsequence()
+{
+    Heap h = {0};
+    int r, i, c, n = 20;
+    job j;
+
+    h.less = job_pri_less;
+    h.rec = job_setheappos;
+
+    heapinsert(&h, mustmakejob(1564998991));
+    checkheapproperty(&h);
+
+    heapremove(&h, 0);
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(684999016));
+    checkheapproperty(&h);
+
+    heapremove(&h, 0);
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(684999016));
+    checkheapproperty(&h);
+
+    heapremove(&h, 0);
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(1564999197));
+    checkheapproperty(&h);
+
+    heapremove(&h, 0);
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(1564999269));
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(1564999322));
+    checkheapproperty(&h);
+
+    heapremove(&h, 1);
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(684999327));
+    checkheapproperty(&h);
+
+    heapremove(&h, 0);
+    checkheapproperty(&h);
+
+    heapinsert(&h, mustmakejob(684999327));
+    checkheapproperty(&h);
+
+    heapremove(&h, 1);
+    checkheapproperty(&h);
 }
